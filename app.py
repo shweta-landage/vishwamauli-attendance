@@ -6,17 +6,14 @@ import pytz
 
 st.set_page_config(page_title="Vishwamauli Attendance", page_icon="🕉️", layout="wide")
 
-# -------- TIMEZONE FIX --------
-
+# -------- TIMEZONE --------
 ist = pytz.timezone("Asia/Kolkata")
 
 # -------- SESSION --------
-
 if "admin_logged" not in st.session_state:
     st.session_state.admin_logged = False
 
 # -------- SIDEBAR --------
-
 page = st.sidebar.selectbox(
     "Navigation",
     ["Worker Attendance", "Admin Dashboard"]
@@ -38,7 +35,7 @@ if page == "Worker Attendance":
 
     temple = st.selectbox(
         "🛕 Select Temple",
-        ["-- Select Temple --", "Mauli Mandir", "Santoshi Mata Mandir"]
+        ["-- Select Temple --", "Mauli Mandir", "Santoshi Mata Mandir", "Other"]
     )
 
     if temple == "-- Select Temple --":
@@ -100,6 +97,7 @@ if page == "Worker Attendance":
         st.success("✅ Attendance Recorded Successfully 🙏")
 
     st.caption("🌼 Vishwamauli Attendance | Built with ❤️")
+
 
 # ================= ADMIN DASHBOARD =================
 
@@ -177,9 +175,9 @@ if page == "Admin Dashboard":
                 st.success(f"{delete_worker} removed")
 
         st.divider()
+
         # -------- ADMIN MANUAL ATTENDANCE --------
 
-        st.divider()
         st.subheader("📝 Admin Manual Attendance")
 
         if os.path.exists("workers.csv"):
@@ -194,7 +192,7 @@ if page == "Admin Dashboard":
 
             manual_temple = st.selectbox(
                 "Select Temple",
-                ["Mauli Mandir", "Santoshi Mata Mandir"],
+                ["Mauli Mandir", "Santoshi Mata Mandir", "Other"],
                 key="manual_temple"
             )
 
@@ -230,6 +228,9 @@ if page == "Admin Dashboard":
                 )
 
                 st.success(f"Attendance marked for {manual_worker}")
+
+        st.divider()
+
         # -------- ATTENDANCE RECORDS --------
 
         if os.path.exists("attendance.csv"):
@@ -246,22 +247,52 @@ if page == "Admin Dashboard":
 
             st.subheader("📋 Attendance Records")
 
-            st.dataframe(df, use_container_width=True)
+            # small table for mobile
+            df_display = df[["Worker","Temple","Date","Time","Action"]]
 
-            # -------- DELETE ATTENDANCE --------
+            st.dataframe(df_display, height=300)
 
-            st.subheader("🗑 Delete Attendance Record")
+            # -------- VIEW PHOTO --------
 
-            row_index = st.number_input(
-                "Enter Row Number to Delete",
+            st.subheader("📸 View Attendance Photo")
+
+            record_index = st.number_input(
+                "Enter row number",
                 min_value=0,
                 max_value=len(df)-1,
                 step=1
             )
 
+            if st.button("Show Photo"):
+
+                image_path = df.loc[record_index, "Image"]
+
+                if image_path == "ADMIN ENTRY":
+                    st.info("Admin manual entry – no selfie available")
+
+                elif os.path.exists(image_path):
+                    st.image(image_path, width=300)
+
+                else:
+                    st.warning("Image not found")
+
+            st.divider()
+
+            # -------- DELETE ATTENDANCE --------
+
+            st.subheader("🗑 Delete Attendance Record")
+
+            row_delete = st.number_input(
+                "Row number to delete",
+                min_value=0,
+                max_value=len(df)-1,
+                step=1,
+                key="delete_row"
+            )
+
             if st.button("Delete Record"):
 
-                df = df.drop(row_index)
+                df = df.drop(row_delete)
                 df.to_csv("attendance.csv", index=False)
 
                 st.success("Record deleted")
@@ -304,7 +335,7 @@ if page == "Admin Dashboard":
                         })
 
             if work_hours:
-                st.dataframe(pd.DataFrame(work_hours), use_container_width=True)
+                st.dataframe(pd.DataFrame(work_hours))
 
             # -------- DOWNLOAD CSV --------
 
