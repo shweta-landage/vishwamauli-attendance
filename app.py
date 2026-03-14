@@ -2,15 +2,20 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+import pytz
 
 st.set_page_config(page_title="Vishwamauli Attendance", page_icon="🕉️", layout="wide")
 
-# ---------------- SESSION ----------------
+# -------- TIMEZONE FIX --------
+
+ist = pytz.timezone("Asia/Kolkata")
+
+# -------- SESSION --------
 
 if "admin_logged" not in st.session_state:
     st.session_state.admin_logged = False
 
-# ---------------- SIDEBAR ----------------
+# -------- SIDEBAR --------
 
 page = st.sidebar.selectbox(
     "Navigation",
@@ -48,7 +53,7 @@ if page == "Worker Attendance":
 
     if photo is not None:
 
-        now = datetime.now()
+        now = datetime.now(ist)
 
         date_today = now.strftime("%d-%m-%Y")
         time_now = now.strftime("%I:%M %p")
@@ -96,7 +101,6 @@ if page == "Worker Attendance":
 
     st.caption("🌼 Vishwamauli Attendance | Built with ❤️")
 
-
 # ================= ADMIN DASHBOARD =================
 
 if page == "Admin Dashboard":
@@ -116,11 +120,17 @@ if page == "Admin Dashboard":
 
     if st.session_state.admin_logged:
 
+        if st.button("Logout"):
+            st.session_state.admin_logged = False
+            st.rerun()
+
         st.success("Admin Access Granted")
 
-        # -------- Add Employee --------
+        st.divider()
 
-        st.subheader("➕ Add New Employee")
+        # -------- ADD EMPLOYEE --------
+
+        st.subheader("➕ Add Employee")
 
         new_worker = st.text_input("Employee Name")
 
@@ -148,7 +158,79 @@ if page == "Admin Dashboard":
 
         st.divider()
 
-        # -------- Attendance Records --------
+        # -------- DELETE EMPLOYEE --------
+
+        if os.path.exists("workers.csv"):
+
+            st.subheader("🗑 Delete Employee")
+
+            workers_df = pd.read_csv("workers.csv")
+
+            delete_worker = st.selectbox(
+                "Select Employee to Remove",
+                workers_df["Worker"]
+            )
+
+            if st.button("Delete Employee"):
+                workers_df = workers_df[workers_df["Worker"] != delete_worker]
+                workers_df.to_csv("workers.csv", index=False)
+                st.success(f"{delete_worker} removed")
+
+        st.divider()
+        # -------- ADMIN MANUAL ATTENDANCE --------
+
+        st.divider()
+        st.subheader("📝 Admin Manual Attendance")
+
+        if os.path.exists("workers.csv"):
+
+            workers_df = pd.read_csv("workers.csv")
+
+            manual_worker = st.selectbox(
+                "Select Worker",
+                workers_df["Worker"],
+                key="manual_worker"
+            )
+
+            manual_temple = st.selectbox(
+                "Select Temple",
+                ["Mauli Mandir", "Santoshi Mata Mandir"],
+                key="manual_temple"
+            )
+
+            manual_action = st.radio(
+                "Action",
+                ["🟢 Punch IN", "🔴 Punch OUT"],
+                key="manual_action"
+            )
+
+            if st.button("Mark Attendance"):
+
+                now = datetime.now(ist)
+
+                date_today = now.strftime("%d-%m-%Y")
+                time_now = now.strftime("%I:%M %p")
+
+                data = {
+                    "Worker": manual_worker,
+                    "Temple": manual_temple,
+                    "Date": date_today,
+                    "Time": time_now,
+                    "Action": manual_action,
+                    "Image": "ADMIN ENTRY"
+                }
+
+                df = pd.DataFrame([data])
+
+                df.to_csv(
+                    "attendance.csv",
+                    mode="a",
+                    header=not os.path.exists("attendance.csv"),
+                    index=False
+                )
+
+                st.success(f"Attendance marked for {manual_worker}")
+        # -------- ATTENDANCE RECORDS --------
 
         if os.path.exists("attendance.csv"):
 
@@ -156,52 +238,37 @@ if page == "Admin Dashboard":
 
             col1, col2, col3 = st.columns(3)
 
-            with col1:
-                st.metric("Workers", df["Worker"].nunique())
-
-            with col2:
-                st.metric("Temples", df["Temple"].nunique())
-
-            with col3:
-                st.metric("Entries", len(df))
+            col1.metric("Workers", df["Worker"].nunique())
+            col2.metric("Temples", df["Temple"].nunique())
+            col3.metric("Entries", len(df))
 
             st.divider()
 
             st.subheader("📋 Attendance Records")
 
-            # Header row
+            st.dataframe(df, use_container_width=True)
 
-            h1, h2, h3, h4, h5, h6 = st.columns([1.5,2,1.5,1.5,1.5,1])
+            # -------- DELETE ATTENDANCE --------
 
-            h1.markdown("**Worker**")
-            h2.markdown("**Temple**")
-            h3.markdown("**Date**")
-            h4.markdown("**Time**")
-            h5.markdown("**Action**")
-            h6.markdown("**Image**")
+            st.subheader("🗑 Delete Attendance Record")
 
-            # Rows
+            row_index = st.number_input(
+                "Enter Row Number to Delete",
+                min_value=0,
+                max_value=len(df)-1,
+                step=1
+            )
 
-            for i, row in df.iterrows():
+            if st.button("Delete Record"):
 
-                col1, col2, col3, col4, col5, col6 = st.columns([1.5,2,1.5,1.5,1.5,1])
+                df = df.drop(row_index)
+                df.to_csv("attendance.csv", index=False)
 
-                col1.write(row["Worker"])
-                col2.write(row["Temple"])
-                col3.write(row["Date"])
-                col4.write(row["Time"])
-                col5.write(row["Action"])
-
-                if col6.button("View", key=f"img{i}"):
-
-                    image_path = row["Image"]
-
-                    if os.path.exists(image_path):
-                        st.image(image_path, width=350)
+                st.success("Record deleted")
 
             st.divider()
 
-            # -------- Work Hours --------
+            # -------- WORK HOURS --------
 
             st.subheader("⏱ Work Hours Summary")
 
@@ -239,7 +306,7 @@ if page == "Admin Dashboard":
             if work_hours:
                 st.dataframe(pd.DataFrame(work_hours), use_container_width=True)
 
-            # Download CSV
+            # -------- DOWNLOAD CSV --------
 
             with open("attendance.csv", "rb") as file:
                 st.download_button(
