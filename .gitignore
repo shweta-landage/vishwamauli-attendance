@@ -1,0 +1,4 @@
+images/
+attendance.csv
+__pycache__/
+.env
